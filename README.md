@@ -12,7 +12,7 @@ Spanner is very easy to use.
 
 Here is an example
 
-```````````
+```````````python
   from spanner import Spanner
 
   app = Spanner()
@@ -27,7 +27,7 @@ What's more?
 
 Spanner is very easy to extend.
 
-```````````
+```````````python
   db = Database()
   @app.before_request('initdb', autoload=False)
   def init_db(req, res):
@@ -40,13 +40,9 @@ Spanner is very easy to extend.
     # res.send(something)
 ```````````
 
-Spanner also provides websocket.(wait to finish)
 
-````````````
-  @app.endpoint()
-  def example():
-    pass
-````````````
+
+Spanner also provides websocket.(wait to finish)
 
 Required
 ============

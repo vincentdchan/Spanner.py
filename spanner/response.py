@@ -33,15 +33,26 @@ class HttpResponse:
 
     def send(self, chunk):
         # wait to finish
-        if isinstance(chunk, str) & isinstance(self.body, str):
-            chunk = chunk.encode('UTF-8')
-            self.body += chunk
-            return
-        self.body = chunk
+        if self.closed = False:
+            if isinstance(chunk, str) & isinstance(self.body, str):
+                chunk = chunk.encode('UTF-8')
+                self.body = chunk
+        else:
+            return  # shold raise an exception?
 
     def redirect(self, location, status=302):
         self._status = int(status)
         self.add_header('Location', location)
+
+    def abort(self, status=404, text="Page Not found"):
+        self._status = int(status)
+        data = text.encode('UTF-8')
+        self._headers = (
+            (b'Content-Type', b'text/plain'),
+            (b'Content-Length', str(len(data)).encode('utf-8'))
+        )
+        self.closed = True
+        return
 
     def set_cookie(self, name, value='', max_age=None, path='/',
                    domain=None, secure=False, httponly=False):

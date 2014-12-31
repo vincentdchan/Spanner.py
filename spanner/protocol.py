@@ -1,9 +1,6 @@
 import asyncio
 from .log import logger
-from vase.http import (
-    HttpParser,
-    HttpWriter
-)
+from spanner.http import HttpParser, HttpWriter
 from spanner.exceptions import BadRequestException
 
 _DEFAULT_KEEP_ALIVE = 20

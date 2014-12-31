@@ -6,7 +6,7 @@ from .protocol import BaseProcessor
 class RoutingHttpProcessor(BaseProcessor):
     def __init__(self, transport, protocol, reader, writer, *, routes=None):
         if not routes:
-            routes = Mapper()
+            routes = Diapatcher()
         self._routes = routes
         self._handler = None
         super().__init__(transport, protocol, reader, writer)
@@ -15,11 +15,7 @@ class RoutingHttpProcessor(BaseProcessor):
     def handle_request(self, request): # wait to finish
         current_route = None
         matchdict = {}
-        for route in self._routes:
-            matchdict = route.matches(request)
-            if matchdict is not None:
-                current_route = route
-                break
+        current_route = self.route.match(request.path)
         if current_route is None:
             return (yield from super().handle_request(request))
         self._handler = current_route.handler_factory(request, self._reader, self._writer)
@@ -37,31 +33,31 @@ class RoutingHttpProcessor(BaseProcessor):
             self._handler.connection_lost(exc)
 
 
-class RequestSpec:
-    def __init__(self, pattern, methods="*"):
-        self.pattern = pattern
-        if isinstance(methods, str):
-            methods = (methods, )
-        self.methods = tuple(m.lower() for m in methods)
+# class RequestSpec:
+#     def __init__(self, pattern, methods="*"):
+#         self.pattern = pattern
+#         if isinstance(methods, str):
+#             methods = (methods, )
+#         self.methods = tuple(m.lower() for m in methods)
+#
+#     def __str__(self):
+#         return "<{} pattern='{}' methods='{}'>".format(
+#             self.__class__.__name__,
+#             self.pattern,
+#             self.methods
+#         )
 
-    def __str__(self):
-        return "<{} pattern='{}' methods='{}'>".format(
-            self.__class__.__name__,
-            self.pattern,
-            self.methods
-        )
 
-
-class Mapper(object):
+class Dispatcher(object):
     def __init__(self):
         self._list = []
 
-    def connect(self, path, **kwargs):
+    def connect(self, path, controller, **kwargs):
         item = (path, dict(kwargs))
         self._list.append(item)
         return item
 
-    def match(self):
+    def match(self, path):
         pass
 
 

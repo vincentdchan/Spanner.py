@@ -1,32 +1,20 @@
 import asyncio
 from .protocol import BaseHttpProtocol
 from .response import HttpResponse
-from .handlers import (
-    CallbackRouteHandler,
-    WebSocketHandler,
-)
+from .handlers import CallbackRouteHandler
 from .routing import (
     CallbackRoute,
     RoutingHttpProcessor,
-    Mapper,
-    # WebSocketRoute,
+    Diapatcher,
 )
-from .sockjs import SockJsRoute
-from .routing import RequestSpec
 
 __all__ = ["Spanner"]
-
-
-class CallableDict(dict):
-    "Dirty hack, so that routes does not stringify the dict"
-    def __call__(self):
-        pass
 
 
 class Spanner:
     def __init__(self, name):
         self._name = name
-        self._routes = Mapper()
+        self._routes = Dispatcher()
         self._before_request = []
         self._after_request = []
 
@@ -87,17 +75,17 @@ class Spanner:
 
         return wrap
 
-    def endpoint(self, *, path, with_sockjs=True):
-        spec = RequestSpec(path)
-
-        def wrap(cls):
-            if with_sockjs:
-                self._routes.append(SockJsRoute(spec, cls))
-            else:
-                self._routes.append(WebSocketRoute(spec, cls))
-            return cls
-
-        return wrap
+    # def endpoint(self, *, path, with_sockjs=True):
+    #     spec = RequestSpec(path)
+    #
+    #     def wrap(cls):
+    #         if with_sockjs:
+    #             self._routes.append(SockJsRoute(spec, cls))
+    #         else:
+    #             self._routes.append(WebSocketRoute(spec, cls))
+    #         return cls
+    #
+    #     return wrap
 
     def run(self, *, host='0.0.0.0', port=8000, loop=None):
         if loop is None:
