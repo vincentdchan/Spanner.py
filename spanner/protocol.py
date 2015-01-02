@@ -2,6 +2,7 @@ import asyncio
 from .log import logger
 from spanner.http import HttpParser, HttpWriter
 from spanner.exceptions import BadRequestException
+from spanner.routing import RoutingHttpProcessor
 
 _DEFAULT_KEEP_ALIVE = 20
 
@@ -9,10 +10,10 @@ _DEFAULT_KEEP_ALIVE = 20
 class BaseProcessor:
     """Base class responsible for processing http requests"""
     def __init__(self, transport, protocol, reader, writer):
-        self._transport = transport
-        self._protocol = protocol
-        self._reader = reader
-        self._writer = writer
+        self.transport = transport
+        self.protocol = protocol
+        self.reader = reader
+        self.writer = writer
 
     @asyncio.coroutine
     def handle_request(self, request):
@@ -25,40 +26,37 @@ class BaseProcessor:
         pass
 
 
-class BaseHttpProtocol(asyncio.StreamReaderProtocol):
-    processor_factory = BaseProcessor
-
-    def __init__(self, handler_factory=None, *, keep_alive=_DEFAULT_KEEP_ALIVE, loop=None):
-
-        if handler_factory is not None:
-            self.processor_factory = handler_factory
-        self._reader = asyncio.StreamReader(loop=loop)
-        self._keep_alive = keep_alive
-        super().__init__(self._reader, None, loop)
+class HttpServerProtocol(asyncio.StreamReaderProtocol):
+    def __init__(self, app, *, keep_alive=_DEFAULT_KEEP_ALIVE, loop=None):
+        self.app = app
+        self.routes = app.routes
+        self.reader = asyncio.StreamReader(loop=loop)
+        self.keep_alive = keep_alive
+        super().__init__(self.reader, None, loop)
         self.h_timeout = None
 
     def connection_made(self, transport):
-        self._transport = transport
-        self._reader.set_transport(transport)
+        self.transport = transport
+        self.reader.set_transport(transport)
 
-        self._writer = HttpWriter(transport, self,
-                            self._reader,
-                            self._loop)
+        self.writer = HttpWriter(transport, self,
+                            self.reader,
+                            self.loop)
 
-        self._handler = self._build_handler()
+        self.handler = self._build_handler()
 
-        self._task = asyncio.async(self._handle_client())
-        self._task.add_done_callback(self._maybe_log_exception)
+        self.task = asyncio.async(self.handle_client())
+        self.task.add_done_callback(self._maybe_log_exception)
 
-        self._reset_timeout()
+        self.reset_timeout()
 
     def connection_lost(self, exc):
-        self._task.cancel()
-        self._task = None
-        handler = self._handler
-        self._writer = None
-        self._handler = None
-        self._stop_timeout()
+        self.task.cancel()
+        self.task = None
+        handler = self.handler
+        self.writer = None
+        self.handler = None
+        self.stop_timeout()
         try:
             handler.connection_lost(exc)
         finally:
@@ -69,28 +67,28 @@ class BaseHttpProtocol(asyncio.StreamReaderProtocol):
         super().data_received(data)
 
     @asyncio.coroutine
-    def _handle_client(self):
+    def handle_client(self):
         while True:
             try:
-                req = yield from HttpParser.parse(self._reader)
+                req = yield from HttpParser.parse(self.reader)
             except BadRequestException as e:
-                self._bad_request(self._writer, e)
-                self._writer.close()
+                self._bad_request(self.writer, e)
+                self.writer.close()
                 break
             # connection has been closed
             if req is None:
                 break
 
             try:
-                yield from self._handler.handle_request(req)
+                yield from self.handler.handle_request(req)
             finally:
                 if self._should_close_conn_immediately(req):
-                    if self._writer:
-                        self._writer.close()
+                    if self.writer:
+                        self.writer.close()
                 else:
                     yield from req.body.read()
-                    if self._writer is not None:
-                        self._writer.restore()
+                    if self.writer is not None:
+                        self.writer.restore()
 
     def _reset_timeout(self):
         self._stop_timeout()
@@ -108,9 +106,10 @@ class BaseHttpProtocol(asyncio.StreamReaderProtocol):
             self._reset_timeout()
 
     def _build_handler(self):
-        return self.processor_factory(self._transport, self,
-                            self._reader,
-                            self._writer)
+        # return self.processor_factory(self._transport, self,
+        #                     self._reader,
+        #                     self._writer)
+        return RoutingHttpProcessor(self.transport, self, self.reader, self.writer)
 
     def _should_close_conn_immediately(self, req):
         if self._keep_alive < 1:

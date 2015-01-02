@@ -13,10 +13,10 @@ __all__ = ["Spanner"]
 
 class Spanner:
     def __init__(self, name):
-        self._name = name
-        self._routes = Dispatcher()
-        self._before_request = []
-        self._after_request = []
+        self.name = name
+        self.routes = Dispatcher()
+        self.before_request = []
+        self.after_request = []
 
     @asyncio.coroutine
     def _handle_404(self, request, start_response):
@@ -37,9 +37,8 @@ class Spanner:
         def index(req, res):
             res.send("Hello world!")
     """
-        # spec = RequestSpec(path, methods)
         def wrap(func):
-            self._routes.connect(path, handler=func, conditions=conditions)
+            self.routes.connect(path, handler=func, conditions=conditions)
             return func
 
         return wrap
@@ -90,10 +89,11 @@ class Spanner:
     def run(self, *, host='0.0.0.0', port=8000, loop=None):
         if loop is None:
             loop = asyncio.get_event_loop()
-
-        def processor_factory(transport, protocol, reader, writer):
-            return RoutingHttpProcessor(transport, protocol, reader, writer, routes=self._routes)
-        asyncio.async(loop.create_server(lambda: BaseHttpProtocol(processor_factory, loop=loop),
+        # def processor_factory(transport, protocol, reader, writer):
+        #     return RoutingHttpProcessor(transport, protocol, reader, writer, routes=self._routes)
+        # asyncio.async(loop.create_server(lambda: BaseHttpProtocol(processor_factory, loop=loop),
+        #             host, port))
+        asyncio.async(loop.create_server(lambda: HttpServerProtocol(self, loop=loop),
                     host, port))
         print("Listening on http://{0}:{1}".format(host, port))
         loop.run_forever()
@@ -101,9 +101,16 @@ class Spanner:
     @staticmethod
     def _decorate_callback(callback):
         @asyncio.coroutine
-        def handle_normal(request, start_response, **kwargs):
+        def handle_normal(request, writer, **kwargs):
+            def start_response(status, headers):
+                writer.write_status(status)
+                writer.add_headers(*headers)
 
-            response = HttpResponse()
+                def write(data):
+                    writer.write(data)
+                return write
+
+            response = HttpResponse(writer)
             # yield from before_request
             yield from asyncio.coroutine(callback)(request, response, **kwargs)
             # yield from after_request
@@ -113,5 +120,6 @@ class Spanner:
             # else:
             #     response = HttpResponse(data)
 
-            return response(start_response)
+            result = response(start_response)
+            writer.writelines(result)
         return handle_normal

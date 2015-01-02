@@ -12,47 +12,43 @@ def status_line(status):
 
 
 class HttpResponse:
-    def __init__(self, body=None, *, status=200, content_type='text/html'):
+    def __init__(self, writer, status=200, content_type='text/html'):
         if isinstance(body, str):
             body = body.encode('utf-8')
-        self._body = body
-        self._status = int(status)
-        self._cookies = SimpleCookie()
-        self._headers = [
+        self.status = int(status)
+        self.cookies = SimpleCookie()
+        self.writer = writer
+        self.headers = [
             ('Content-Encoding', 'UTF-8'),
             ('Content-Type', content_type),
             ('Content-Length', str(len(body))),
         ]
-        self._content_type = content_type
-        self.closed = False
+        self.content_type = content_type
 
     def __call__(self, start_response):
         status = status_line(self._status)
         start_response(status, self._get_headers())
         return [self._body]
 
-    def send(self, chunk):
-        # wait to finish
-        if self.closed = False:
-            if isinstance(chunk, str) & isinstance(self.body, str):
-                chunk = chunk.encode('UTF-8')
-                self.body = chunk
-        else:
-            return  # shold raise an exception?
+    def write(self, chunk):
+        """Writes chunk of data to a stream by using different writers.
+        writer uses filter to modify chunk of data.
+        write_eof() indicates end of stream.
+        writer can't be used after write_eof() method being called.
+        write() return drain future.
+        """
+        # check if send header
+        # send chunk
 
-    def redirect(self, location, status=302):
-        self._status = int(status)
-        self.add_header('Location', location)
+    # def write_eof(self):
+    #     self.write(EOF_MARKER)
+    #     try:
+    #         self.writer.throw(aiohttp.EofStream())
+    #     except StopIteration:
+    #         pass
+    #
+    #     return self.transport.drain()
 
-    def abort(self, status=404, text="Page Not found"):
-        self._status = int(status)
-        data = text.encode('UTF-8')
-        self._headers = (
-            (b'Content-Type', b'text/plain'),
-            (b'Content-Length', str(len(data)).encode('utf-8'))
-        )
-        self.closed = True
-        return
 
     def set_cookie(self, name, value='', max_age=None, path='/',
                    domain=None, secure=False, httponly=False):

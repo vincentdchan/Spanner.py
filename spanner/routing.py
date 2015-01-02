@@ -4,23 +4,36 @@ from .protocol import BaseProcessor
 
 
 class RoutingHttpProcessor(BaseProcessor):
-    def __init__(self, transport, protocol, reader, writer, *, routes=None):
-        if not routes:
-            routes = Diapatcher()
-        self._routes = routes
-        self._handler = None
+    # Vars:
+    #   transport
+    #   protocol
+    #   reader
+    #   writer
+    def __init__(self, transport, protocol, reader, writer, app):
+        self.handler = None
         super().__init__(transport, protocol, reader, writer)
+        self.app = app
+        self.routes = app.routes
+        self.before_request = app.before_request
+        self.after_request = app.after_request
 
     @asyncio.coroutine
     def handle_request(self, request): # wait to finish
         current_route = None
         matchdict = {}
-        current_route = self.route.match(request.path)
+        current_route = self.routes.match(request.path)  # get the method dict
         if current_route is None:
             return (yield from super().handle_request(request))
-        self._handler = current_route.handler_factory(request, self._reader, self._writer)
+        func = current_route['func']
+        params = current_route['params']
+        conditions = current_route['conditions']
+        if not (request.method in conditions['method']):
+            # do something
+            pass
+        handler_factory = CallbackRouteHandler
+        self.handler = handler_factory(request, self.reader, self.writer, func)
 
-        return (yield from self._handler.handle(**matchdict))
+        return (yield from self.handler.handle(**matchdict))
 
     def on_timeout(self):
         self._handler.on_timeout()
@@ -46,19 +59,6 @@ class RoutingHttpProcessor(BaseProcessor):
 #             self.pattern,
 #             self.methods
 #         )
-
-
-class Dispatcher(object):
-    def __init__(self):
-        self._list = []
-
-    def connect(self, path, controller, **kwargs):
-        item = (path, dict(kwargs))
-        self._list.append(item)
-        return item
-
-    def match(self, path):
-        pass
 
 
 _R = re.compile("{((\w+:)?[^{}]+)}")

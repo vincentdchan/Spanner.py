@@ -1,13 +1,4 @@
 import asyncio
-from vase.websocket import WebSocketFormatException
-from .websocket import (
-    WebSocketWriter,
-    MAGIC,
-    WebSocketParser,
-    FrameBuilder,
-    OpCode
-)
-
 from hashlib import sha1
 from base64 import b64encode
 
@@ -29,22 +20,14 @@ class RequestHandler:
 
 class CallbackRouteHandler(RequestHandler):
     def __init__(self, request, reader, writer, callback):
-        self._request = request
-        self._reader = reader
-        self._writer = writer
-        self._callback = callback
+        self.request = request
+        self.reader = reader
+        self.writer = writer
+        self.callback = callback
 
     def handle(self, **kwargs):
-        def start_response(status, headers):
-            self._writer.write_status(status)
-            self._writer.add_headers(*headers)
-
-            def write(data):
-                self._writer.write(data)
-            return write
-
-        result = yield from self._callback(self._request, start_response, **kwargs)
-        self._writer.writelines(result)
+        yield from self.callback(self.request, self.writer, **kwargs)
+        return
 
 
 class WebSocketHandler(RequestHandler):
