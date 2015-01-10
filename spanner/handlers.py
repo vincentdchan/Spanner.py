@@ -1,111 +1,88 @@
-import asyncio
-from hashlib import sha1
-from base64 import b64encode
+import time
+from .request import HttpRequest
 
+class BaseServerHandler:
+    def __init__(self, app):
+        self.app = app
 
-class RequestHandler:
-
-    def handle(self, **kwargs):
-        raise NotImplementedError
-
-    def persistent_connection(self):
-        return False
-
-    def connection_lost(self, exc):
-        pass
-
-    def on_timeout(self):
-        pass
-
-
-class CallbackRouteHandler(RequestHandler):
-    def __init__(self, request, reader, writer, callback):
-        self.request = request
-        self.reader = reader
-        self.writer = writer
-        self.callback = callback
-
-    def handle(self, **kwargs):
-        yield from self.callback(self.request, self.writer, **kwargs)
-        return
-
-
-class WebSocketHandler(RequestHandler):
-    def __init__(self, request, reader, writer, endpoint_factory, context):
-        self._request = request
-        self._reader = reader
-        self._writer = writer
-        self._endpoint_factory = endpoint_factory
-        self._endpoint = None
-        self._context = context
-
-    def handle(self, **kwargs):
-        self._endpoint = self._endpoint_factory()
-        self._endpoint.bag = self._context
-
-        self._endpoint.transport = WebSocketWriter(self._writer)
-
-        if hasattr(self._endpoint, 'authorize_request'):
-            if not (yield from asyncio.coroutine(self._endpoint.authorize_request)(self._request)):
-                self._writer.write_status(b'401 Anauthorized')
-                self._writer.write_body(b'')
-                return
-
-        key = self._request.get('sec-websocket-key', '')
-        if not key:
-            self._writer.write_status(b'400 Bad Request')
-            self._writer.add_headers(
-                (b'Content-Length', b'0',),
-            )
-            self._writer.write_body(b'')
-            return
-
-        accept = sha1(key.encode('ascii') + MAGIC).digest()
-        self._writer.status = 101
-        self._writer.add_headers(
-            (b'Upgrade', b'websocket',),
-            (b'Connection', b'Upgrade'),
-            (b'Sec-WebSocket-Accept', b64encode(accept))
-        )
-        self._writer.write_body(b'')
-
-        yield from self._switch_protocol()
-
-    def _switch_protocol(self):
-        self._endpoint.on_connect()
-
-        yield from self._parse_messages()
-
-    @asyncio.coroutine
-    def _parse_messages(self):
-        parser = WebSocketParser(self._reader)
+    def __call__(self, reader, writer):
+        request_line = yield from reader.readline()
+        req = HttpRequest()
+        # res = HttpResponse()
+        # TODO: bytes vs str
+        request_line = request_line.decode()
+        method, path, proto = request_line.split()
+        print('%.3f %s %s "%s %s"' % (time.time(), req, writer, method, path))
+        path = path.split("?", 1)
+        qs = ""
+        if len(path) > 1:
+            qs = path[1]
+        path = path[0]
+        headers = {}
         while True:
-            try:
-                msg = yield from parser.get_message()
-            except WebSocketFormatException:
-                self._writer.close()
-                return
-            if msg is None:
-                self._writer.close()
-                return
-            if msg.is_ctrl:
-                if msg.opcode == OpCode.close:
-                    if not hasattr(self._writer, '_ws_closing'):
-                        self._writer.write(FrameBuilder.close(masked=False))
-                    self._writer.close()
-                    return
-                elif msg.opcode == OpCode.ping:
-                    self._writer.write(FrameBuilder.pong(masked=False, payload=msg.payload))
-            else:
-                yield from asyncio.coroutine(self._endpoint.on_message)(msg.payload)
+            l = yield from reader.readline()
+            # TODO: bytes vs str
+            l = l.decode()
+            if l == "\r\n":
+                break
+            k, v = l.split(":", 1)
+            headers[k] = v.strip()
+#        print("================")
+#        print(req, writer)
+#        print(req, (method, path, qs, proto), headers)
 
-    def persistent_connection(self):
-        return True
+        # Find which mounted subapp (if any) should handle this request
+        app = self.app
+        while True:
+            found = False
+            for subapp in app.mounts:
+                root = subapp.url
+                print(path, "vs", root)
+                if path[:len(root)] == root:
+                    app = subapp
+                    found = True
+                    path = path[len(root):]
+                    if not path or path[0] != "/":
+                        path = "/" + path
+                    break
+            if not found:
+                break
 
-    def connection_lost(self, exc):
-        self._endpoint.on_close(exc)
-        if self._writer:
-            self._writer.close()
+        # We initialize apps on demand, when they really get requests
+        if not app.inited:
+            app.init()
 
-    def on_timeout(self):
-        self._writer.write(FrameBuilder.ping(masked=False))
+        # Find handler to serve this request in app's url_map
+        handler = None
+        for pattern, h, *extra in app.url_map:
+            if path == pattern:
+                handler = h
+                break
+            elif not isinstance(pattern, str):
+                # Anything which is non-string assumed to be a ducktype
+                # pattern matcher, whose .match() method is called. (Note:
+                # Django uses .search() instead, but .match() is more
+                # efficient and we're not exactly compatible with Django
+                # URL matching anyway.)
+                m = pattern.match(path)
+                if m:
+                    req.url_match = m
+                    handler = h
+                    break
+        if handler:
+            print("Handler: %s" % handler)
+            req.method = method
+            req.path = path
+            req.qs = qs
+            req.headers = headers
+            req.reader = reader
+            yield from handler(req, writer)
+            # handler(req, writer)
+        else:
+            start_response(writer, status="404")
+            writer.write("404\r\n")
+        #print(req, "After response write")
+        # yield from writer.close()
+        writer.close()
+        if __debug__ and self.app.debug > 1:
+            print(req, "Finished processing request")
