@@ -27,6 +27,8 @@ What's more?
 
 Spanner is very easy to extend.
 
+Comming soon...
+
 ```````````python
   db = Database()
   @app.before_request('initdb', autoload=False)

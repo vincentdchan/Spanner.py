@@ -1,5 +1,6 @@
 import time
 from .request import HttpRequest
+from .response import HttpResponse
 
 class BaseServerHandler:
     def __init__(self, app):
@@ -8,7 +9,7 @@ class BaseServerHandler:
     def __call__(self, reader, writer):
         request_line = yield from reader.readline()
         req = HttpRequest()
-        # res = HttpResponse()
+        res = HttpResponse(writer)
         # TODO: bytes vs str
         request_line = request_line.decode()
         method, path, proto = request_line.split()
@@ -76,11 +77,10 @@ class BaseServerHandler:
             req.qs = qs
             req.headers = headers
             req.reader = reader
-            yield from handler(req, writer)
-            # handler(req, writer)
+            yield from handler(req, res)
         else:
-            start_response(writer, status="404")
-            writer.write("404\r\n")
+            res.status = 404
+            res.write("404\r\n")
         #print(req, "After response write")
         # yield from writer.close()
         writer.close()

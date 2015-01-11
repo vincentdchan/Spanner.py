@@ -6,8 +6,7 @@ app = spanner.Spanner()
 
 @app.route("/")
 def index(req, res):
-    spanner.start_response(res)
-    res.write(b"I can show you a table of <a href='squares'>squares</a>.")
+    res.write("Hello world!")
 
 # @app.route("/squares")
 # def squares(req, resp):
