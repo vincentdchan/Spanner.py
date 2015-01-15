@@ -41,10 +41,11 @@ class HttpHeader(list):
 
 
 class HttpResponse:
-    def __init__(self, writer, status=200, version=1.1, content_type='text/html'):
+    def __init__(self, writer, app, status=200, version=1.1, content_type='text/html'):
         self.status = int(status)
         self.cookies = SimpleCookie()
         self.writer = writer
+        self._app = app
         self.headers = HttpHeader([
             ('Content-Encoding', 'UTF-8'),
             ('Content-Type', content_type),
