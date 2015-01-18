@@ -1,12 +1,10 @@
-Spanner
-===========
+# Spanner
 
 Spanner is a micro web framework written in python for human beings.
 
 It's inspired by Flask & express.js
 
-How to use it
-===========
+# How to use it
 
 Spanner is very easy to use.
 
@@ -19,7 +17,7 @@ Here is an example
 
   @app.route('/')
   def index(req, res):
-    res.send("Hello world")
+    res.write("Hello world")
 
 ```````````
 
@@ -27,25 +25,33 @@ What's more?
 
 Spanner is very easy to extend.
 
-Comming soon...
+# Middlewares(Not Finish yet)
 
 ```````````python
   db = Database()
-  @app.before_request('initdb', autoload=False)
-  def init_db(req, res):
+  @app.use
+  def load_database(req, res, next):
+    db.load()
     req.db = db
-
-  @app.route('/user/{id}')
-  def user_info(req, res):
-    db = req.db
-    # do something with db
-    # res.send(something)
+    yield from next()
+    db.close()
 ```````````
 
 
+# Sub-app(Not Finish yet)
 
-Spanner also provides websocket.(wait to finish)
+`````````python
+subapp = Spanner()
+app.mount('/sub/', subapp)
+`````````
 
-Required
-============
-Python 3.4+ for asyncio
+
+# Required
+
+ - Python 3.3+ (asyncio)
+ - routes
+
+
+# Note
+
+ready to release

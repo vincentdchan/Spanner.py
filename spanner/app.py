@@ -2,11 +2,12 @@ import time
 import re
 import errno
 import asyncio
-# import utemplate.source
+import json
 
+from routes import Mapper
 from .utils import parse_qs
 from .response import HttpResponse
-from .handlers import BaseServerHandler
+from .handlers import HttpHandler, BaseServerHandler
 
 
 def get_mime_type(fname):
@@ -39,9 +40,8 @@ def sendfile(writer, fname, content_type=None):
             raise
 
 def jsonify(writer, dict):
-    import ujson
     yield from start_response(writer, "application/json")
-    yield from writer.write(ujson.dumps(dict))
+    yield from writer.write(json.dumps(dict))
 
 def start_response(writer, content_type="text/html", status="200"):
     # yield from writer.write(("HTTP/1.0 %s NA\r\n" % status).encode())
@@ -51,54 +51,136 @@ def start_response(writer, content_type="text/html", status="200"):
     writer.write(("Content-Type: %s\r\n" % content_type).encode())
     writer.write("\r\n".encode())
 
+def static_handler(req, res):
+    path = req.match['filename']
+    yield from sendfile()
 
-class Spanner:
+class StaticHandler(HttpHandler):
+    def __init__(self, dir="./static/"):
+        self.dir = dir
 
-    def __init__(self, routes=None, static="static"):
+    def __call__(self, req, res):
+        path = req.match['filename']
+        content_type = get_mime_type(path)
+        try:
+            with open(fname, "rb") as f:
+                res.headers['content_type'] = content_type
+                res.send_headers()
+                while True:
+                    buf = f.read(512)
+                    if not buf:
+                        break
+                    res.write(buf)
+        except OSError as e:
+            if e.args[0] == errno.ENOENT:
+                res.status = 404
+                res.headers['content_type'] = "text/plain"
+                res.write("Transport failure\r\n")
+            else:
+                raise
+
+def default_handler_404(req, res):
+    res.status = 404
+    res.write("404 Page Not Found\r\n")
+
+class Spanner(HttpHandler):
+
+    def __init__(self, routes=None, static_dir="./static/",
+                            static_url="/static/{filename:.*?}"):
         if routes:
-            self.url_map = routes
+            self._routes = routes
         else:
-            self.url_map = []
-        if static:
-            self.url_map.append((re.compile("^/static(/.+)"),
-                lambda req, resp: (yield from sendfile(resp, static + req.url_match.group(1)))))
-        self.mounts = []
+            self._routes = Mapper()
+        # if static:
+        #     self.url_map.append((re.compile("^/static(/.+)"),
+        #         lambda req, resp: (yield from sendfile(resp, static + req.url_match.group(1)))))
+        self._mounts = Mapper()
+        self._middlewares = []
+        self._errors_handler = {
+            "404": default_handler_404
+        }
         self.inited = False
-        # self.template_loader = utemplate.source.Loader("templates")
+        self._routes.connect(None, static_url, _controller=StaticHandler(static_dir))
 
-    def mount(self, url, app):
-        "Mount a sub-app at the url of current app."
-        # Inspired by Bottle. It might seem that dispatching to
-        # subapps would rather be handled by normal routes, but
-        # arguably, that's less efficient. Taking into account
-        # that paradigmatically there's difference between handing
-        # an action and delegating responisibilities to another
-        # app, Bottle's way was followed.
-        app.url = url
-        self.mounts.append(app)
+    @asyncio.coroutine
+    def __call__(self, req, res):
+        """
+        The sub class of HttpHandler should be a function or a class callable and
+        receive (req, res) pair while request come.
+        """
+        path = req.path
+        match = self._routes.match(path)
+        if not match:
+            res.abort(req, 404)
+            return
+        controller = match.pop("_controller")
+        # TODO: check the conditions
+        # conditions = json.loads(match.pop("_conditions"))
+        # if "method" in conditions.keys():
+        #     if req.method not in conditions['method']:
+        #         res.abort(req, 404)
+        #         return
+        req.vars = match
+        yield from controller(req, res)
+
+
+    # def mount(self, url, app):
+    #     "Mount a sub-app at the url of current app."
+    #     # Inspired by Bottle. It might seem that dispatching to
+    #     # subapps would rather be handled by normal routes, but
+    #     # arguably, that's less efficient. Taking into account
+    #     # that paradigmatically there's difference between handing
+    #     # an action and delegating responisibilities to another
+    #     # app, Bottle's way was followed.
+    #     app.url = url
+    #     self._mounts.connect(None, url, controller=app)
 
     def route(self, url, **kwargs):
-        def _route(f):
+        def route(f):
             self.add_url_rule(url, f, **kwargs)
-            # self.url_map.append((url, f, kwargs))
             return f
-        return _route
+        return route
 
     def add_url_rule(self, url, func, **kwargs):
-        # Note: this method skips Flask's "endpoint" argument,
-        # because it's alleged bloat.
+        if 'method' not in kwargs:
+            kwargs['method'] = ['GET', 'POST']
+        else:
+            kwargs['method'] = [ v.upper() for v in kwargs['method'] ]
         func = asyncio.coroutine(func)
-        self.url_map.append((url, func, kwargs))
+        self._routes.connect(None, url, _controller=func, _conditions=kwargs)
+
+    def use(func=None):
+        """
+        The use method if design for using middlewares.
+        Usage Example:
+        @app.use
+        def cookie_parse(req, res, handler):
+            req.cookie = parseCookie(req)
+            yield from handler(res,req)
+            print("I am using a middleware")
+        """
+        func = asyncio.coroutine(func)   # make the function a coroutine
+        self._middlewares.append(func)
+
+
+    def handle_errors(self, code):
+        def wrapper(f):
+            func = asyncio.coroutine(f)
+            self._errors_handler.__setitem__(str(code), func)
+        return wapper
+
+    def get_errors_handler(self, code):
+        try:
+            handler = self._errors_handler[str(code)]
+        except:
+            handler = None
+        return handler
 
     # def render_template(self, writer, tmpl_name, args=()):
     #     tmpl = self.template_loader.load(tmpl_name)
     #     for s in tmpl(*args):
     #         yield from writer.write(s)
     #
-    # def render_str(self, tmpl_name, args=()):
-    #     #TODO: bloat
-    #     tmpl = self.template_loader.load(tmpl_name)
-    #     return ''.join(tmpl(*args))
 
     def init(self):
         """Initialize a web application. This is for overriding by subclasses.
@@ -108,9 +190,9 @@ class Spanner:
     def run(self, host="127.0.0.1", port=8081, debug=False, lazy_init=False):
         self.debug = int(debug)
         self.init()
-        if not lazy_init:
-            for app in self.mounts:
-                app.init()
+        # if not lazy_init:
+        #     for app in self.mounts:
+        #         app.init()
         loop = asyncio.get_event_loop()
         print("* Running on http://%s:%s/" % (host, port))
         # loop.create_task(asyncio.start_server(self._handle, host, port))

@@ -1,4 +1,5 @@
 import re
+from collections import OrderedDict
 
 
 qu_re = re.compile(r"%([0-9A-Fa-f]{2})")
@@ -53,3 +54,20 @@ class MultiDict(dict):
 
     def __repr__(self):  # pragma: no cover
         return "<MultiDict {}>".format(super().__repr__())
+
+class MultiDict(OrderedDict):
+    def __init__(self, data, lower=False):
+        if lower:
+            def init_list(k, v):
+                self.__setitem__(k, v)
+            [ init_list(k.lower(), v) for k,v in data ]
+
+        else:
+            super().__init__(data)
+
+
+    def __repr__(self):  # pragma: no cover
+        return "<MultiDict {}>".format(super().__repr__())
+
+class HttpHeader(MultiDict):
+    pass

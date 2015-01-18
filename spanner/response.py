@@ -2,6 +2,7 @@ import time
 from http.cookies import SimpleCookie
 from email.utils import formatdate
 from http.server import BaseHTTPRequestHandler
+from .utils import MultiDict
 
 STATUS_MAP = BaseHTTPRequestHandler.responses
 
@@ -46,7 +47,7 @@ class HttpResponse:
         self.cookies = SimpleCookie()
         self.writer = writer
         self._app = app
-        self.headers = HttpHeader([
+        self.headers = MultiDict([
             ('Content-Encoding', 'UTF-8'),
             ('Content-Type', content_type),
         ])
@@ -62,8 +63,8 @@ class HttpResponse:
             .format(self.version, self.status, STATUS_MAP[self.status][0]).encode())
 
         # headers = self._get_headers_list(headers)
-        for k,v in self.headers:
-            self.writer.write("{}: {}\r\n".format(k, v).encode())
+        # for k,v in self.headers:
+        [ self.writer.write("{}: {}\r\n".format(k, self.headers[k]).encode()) for k in self.headers.keys() ]
         self.writer.write("\r\n".encode())
         self.headers_sent = True
 
@@ -89,6 +90,20 @@ class HttpResponse:
     def write_eof(self):
         # do some check
         self.writer.write_eof()
+
+    def close(self):
+        self.writer.close()
+
+    def abort(self, req, code=404):
+        self.status = code
+        handler = self._app.get_errors_handler(code)
+        if not handler:
+            self.status = 404
+            self.write("404 Error handler Not Found\r\n")
+            self.close()
+            return
+        yield from handler(req, self)
+        self.close()
 
     def _get_headers_list(self, headers=None):
         if headers == None:
