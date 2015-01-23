@@ -88,9 +88,9 @@ class Spanner(HttpHandler):
     def __init__(self, routes=None, static_dir="./static/",
                             static_url="/static/{filename:.*?}"):
         if routes:
-            self._routes = routes
+            self.routes = routes
         else:
-            self._routes = Mapper()
+            self.routes = Mapper()
         # if static:
         #     self.url_map.append((re.compile("^/static(/.+)"),
         #         lambda req, resp: (yield from sendfile(resp, static + req.url_match.group(1)))))
@@ -100,7 +100,7 @@ class Spanner(HttpHandler):
             "404": default_handler_404
         }
         self.inited = False
-        self._routes.connect(None, static_url, _controller=StaticHandler(static_dir))
+        self.routes.connect(None, static_url, _controller=StaticHandler(static_dir))
 
     @asyncio.coroutine
     def __call__(self, req, res):
@@ -109,7 +109,7 @@ class Spanner(HttpHandler):
         receive (req, res) pair while request come.
         """
         path = req.path
-        match = self._routes.match(path)
+        match = self.routes.match(path)
         if not match:
             res.abort(req, 404)
             return
@@ -121,7 +121,8 @@ class Spanner(HttpHandler):
         #         res.abort(req, 404)
         #         return
         req.vars = match
-        yield from controller(req, res)
+        handle = Next(controller, self._middlewares.copy(), req, res)
+        yield from handle()
 
 
     # def mount(self, url, app):
@@ -147,16 +148,16 @@ class Spanner(HttpHandler):
         else:
             kwargs['method'] = [ v.upper() for v in kwargs['method'] ]
         func = asyncio.coroutine(func)
-        self._routes.connect(None, url, _controller=func, _conditions=kwargs)
+        self.routes.connect(None, url, _controller=func, _conditions=kwargs)
 
-    def use(func=None):
+    def use(self, func):
         """
         The use method if design for using middlewares.
         Usage Example:
         @app.use
-        def cookie_parse(req, res, handler):
+        def cookie_parse(req, res, handle):
             req.cookie = parseCookie(req)
-            yield from handler(res,req)
+            yield from handle()
             print("I am using a middleware")
         """
         func = asyncio.coroutine(func)   # make the function a coroutine
@@ -176,26 +177,41 @@ class Spanner(HttpHandler):
             handler = None
         return handler
 
-    # def render_template(self, writer, tmpl_name, args=()):
-    #     tmpl = self.template_loader.load(tmpl_name)
-    #     for s in tmpl(*args):
-    #         yield from writer.write(s)
-    #
-
     def init(self):
         """Initialize a web application. This is for overriding by subclasses.
         This is good place to connect to/initialize a database, for example."""
         self.inited = True
 
-    def run(self, host="127.0.0.1", port=8081, debug=False, lazy_init=False):
+    def run(self, host="127.0.0.1", port=8080, debug=False):
         self.debug = int(debug)
         self.init()
-        # if not lazy_init:
-        #     for app in self.mounts:
-        #         app.init()
         loop = asyncio.get_event_loop()
         print("* Running on http://%s:%s/" % (host, port))
         # loop.create_task(asyncio.start_server(self._handle, host, port))
         loop.create_task(asyncio.start_server(BaseServerHandler(self), host, port, loop=loop))
         loop.run_forever()
         loop.close()
+
+class Next:
+    """
+    This class is designed to deal with the middlewares
+    Usage Example:
+    @app.use
+    def cookie_parse(req, res, handle):
+        req.cookie = parseCookie(req)
+        yield from handle()
+        print("I am using a middleware")
+    """
+    def __init__(self, handler, middlewares, request, response):
+        self.handler = handler
+        self.middlewares = middlewares
+        self.req = request
+        self.res = response
+
+    @asyncio.coroutine
+    def __call__(self):
+        if len(self.middlewares) > 0:
+            middleware = self.middlewares.pop(0)    # pop in order
+            yield from middleware(self.req, self.res, self)
+        else:
+            yield from self.handler(self.req, self.res)

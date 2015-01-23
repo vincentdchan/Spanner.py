@@ -77,3 +77,12 @@ class HttpHandler:
     @asyncio.coroutine
     def __call__(self, res, req):
         pass
+
+    @abc.abstractmethod
+    @asyncio.coroutine
+    def handle_errors(self, code):
+        """
+        This method should return a method which could receive (res, req) pair
+        to deal with errors
+        """
+        pass

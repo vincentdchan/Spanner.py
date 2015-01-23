@@ -94,6 +94,16 @@ class HttpResponse:
     def close(self):
         self.writer.close()
 
+    def render_template(self, name, *args, **kwargs):
+        """
+        Usage:
+        
+        req.render_template("index.tpl",{
+            "name": "Chen",
+        })
+        """
+        pass
+
     def abort(self, req, code=404):
         self.status = code
         handler = self._app.get_errors_handler(code)

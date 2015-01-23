@@ -21,24 +21,39 @@ Here is an example
 
 ```````````
 
-What's more?
+The method will be decorated to be a coroutine ***automatically***, so you ***do not*** need to decorate the function with ```@asyncio.coroutine```
+
+# What's more?
 
 Spanner is very easy to extend.
 
-# Middlewares(Not Finish yet)
+## Middlewares
 
 ```````````python
-  db = Database()
+  app = spanner.Spanner()
+
+  @app.route("/")
+  def index(req, res):
+    res.write("Hello world!\n")
+
   @app.use
-  def load_database(req, res, next):
-    db.load()
-    req.db = db
-    yield from next()
-    db.close()
+  def mid(req, res, handle):
+    early = time.time()
+    yield from handle()
+    late = time.time()
+    info = "<br>This connection use {:.5f} seconds".format(late - early)
+    res.write(info)
 ```````````
+The method will be decorated to be a coroutine ***automatically***, so you ***do not*** need to decorate the function with ```@asyncio.coroutine```
+
+The code will export
+```
+Hello world!
+This connection use 0.00000000 seconds
+```
 
 
-# Sub-app(Not Finish yet)
+## Sub-app(Not Finish yet)
 
 `````````python
 subapp = Spanner()

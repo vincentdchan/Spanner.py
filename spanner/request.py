@@ -29,6 +29,9 @@ class HttpRequest:
             k, v = l.split(":", 1)
             self.headers[k] = v.strip()
 
+    def json(self):
+        pass
+
     def read_form_data(self):
         size = int(self.headers["Content-Length"])
         data = yield from self.reader.read(size)
