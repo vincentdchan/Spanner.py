@@ -13,7 +13,6 @@ class BaseServerHandler:
         req = HttpRequest(reader, self.handler)
         yield from req.parse()
         res = HttpResponse(writer, self.handler)
-        print('%.3f "%s %s"' % (time.time(), req.method, req.path))
 #        print("================")
 #        print(req, writer)
 #        print(req, (method, path, qs, proto), headers)
@@ -64,6 +63,9 @@ class BaseServerHandler:
             res.status = 404
             res.write("404 Page Not Found\r\n")
         res.close()
+        now = time.strftime("%Y-%m-%d %H:%M:%S")
+        print(' {} [{}] "{} {}" {}'.format(now, self.handler.__class__.__name__,
+                req.method, req.path, res.status))
         if __debug__ and self.handler.debug > 1:
             print(req, "Finished processing request")
 

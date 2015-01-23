@@ -120,9 +120,17 @@ class Spanner(HttpHandler):
         #     if req.method not in conditions['method']:
         #         res.abort(req, 404)
         #         return
-        req.vars = match
+        req.params = match
         handle = Next(controller, self._middlewares.copy(), req, res)
-        yield from handle()
+        try:
+            yield from handle()
+        except Exception as e:
+            import traceback
+            err_info = traceback.format_exc()
+            print(err_info)
+            if self.debug:
+                res.write(err_info.replace("\n","<br>\n"))
+            res.close()
 
 
     # def mount(self, url, app):
@@ -183,7 +191,7 @@ class Spanner(HttpHandler):
         self.inited = True
 
     def run(self, host="127.0.0.1", port=8080, debug=False):
-        self.debug = int(debug)
+        self.debug = debug
         self.init()
         loop = asyncio.get_event_loop()
         print("* Running on http://%s:%s/" % (host, port))
