@@ -7,6 +7,11 @@ app = spanner.Spanner()
 def index(req, res):
     res.write("Hello world!\n")
 
+@app.route("/user/{id}")
+def show_id(req, res):
+    id = req.params['id']
+    res.write("ID: {}".format(id))
+
 @app.use
 def mid(req, res, handle):
     early = time.time()

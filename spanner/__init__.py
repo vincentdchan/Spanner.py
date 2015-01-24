@@ -1,1 +1,1 @@
-from .app import Spanner, start_response
+from .app import Spanner

@@ -43,14 +43,6 @@ def jsonify(writer, dict):
     yield from start_response(writer, "application/json")
     yield from writer.write(json.dumps(dict))
 
-def start_response(writer, content_type="text/html", status="200"):
-    # yield from writer.write(("HTTP/1.0 %s NA\r\n" % status).encode())
-    # yield from writer.write(("Content-Type: %s\r\n" % content_type).encode())
-    # yield from writer.write("\r\n".encode())
-    writer.write(("HTTP/1.0 %s NA\r\n" % status).encode())
-    writer.write(("Content-Type: %s\r\n" % content_type).encode())
-    writer.write("\r\n".encode())
-
 def static_handler(req, res):
     path = req.match['filename']
     yield from sendfile()
@@ -70,6 +62,7 @@ class StaticHandler(HttpHandler):
                     buf = f.read(512)
                     if not buf:
                         break
+                    yield from asyncio.sleep(0)
                     res.write(buf)
         except OSError as e:
             if e.args[0] == errno.ENOENT:
@@ -79,6 +72,7 @@ class StaticHandler(HttpHandler):
             else:
                 raise
 
+@asyncio.coroutine
 def default_handler_404(req, res):
     res.status = 404
     res.write("404 Page Not Found\r\n")
@@ -97,7 +91,7 @@ class Spanner(HttpHandler):
         self._mounts = Mapper()
         self._middlewares = []
         self._errors_handler = {
-            "404": default_handler_404
+            "404": default_handler_404,
         }
         self.inited = False
         self.routes.connect(None, static_url, _controller=StaticHandler(static_dir))
@@ -111,11 +105,11 @@ class Spanner(HttpHandler):
         path = req.path
         match = self.routes.match(path)
         if not match:
-            res.abort(req, 404)
+            yield from res.abort(req, 404)
             return
         controller = match.pop("_controller")
         # TODO: check the conditions
-        # conditions = json.loads(match.pop("_conditions"))
+        conditions = match.pop("_conditions")
         # if "method" in conditions.keys():
         #     if req.method not in conditions['method']:
         #         res.abort(req, 404)
@@ -128,8 +122,11 @@ class Spanner(HttpHandler):
             import traceback
             err_info = traceback.format_exc()
             print(err_info)
+            res.status = 500
             if self.debug:
                 res.write(err_info.replace("\n","<br>\n"))
+            else:
+                res.write("An error is occured on the server")
             res.close()
 
 
@@ -194,6 +191,7 @@ class Spanner(HttpHandler):
         self.debug = debug
         self.init()
         loop = asyncio.get_event_loop()
+        self.loop = loop
         print("* Running on http://%s:%s/" % (host, port))
         # loop.create_task(asyncio.start_server(self._handle, host, port))
         loop.create_task(asyncio.start_server(BaseServerHandler(self), host, port, loop=loop))

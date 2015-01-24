@@ -6,18 +6,24 @@ It's inspired by Flask & express.js
 
 # How to use it
 
+>Spanner has not package yet.
+
+>So you can copy the ```spanner``` dictionary to your   project dictionary.
+
+
 Spanner is very easy to use.
 
 Here is an example
 
 ```````````python
-  from spanner import Spanner
 
-  app = Spanner()
+from spanner import Spanner
 
-  @app.route('/')
-  def index(req, res):
-    res.write("Hello world")
+app = Spanner()
+
+@app.route('/')
+def index(req, res):
+  res.write("Hello world")
 
 ```````````
 
@@ -30,19 +36,19 @@ Spanner is very easy to extend.
 ## Middlewares
 
 ```````````python
-  app = spanner.Spanner()
+app = spanner.Spanner()
 
-  @app.route("/")
-  def index(req, res):
-    res.write("Hello world!\n")
+@app.route("/")
+def index(req, res):
+  res.write("Hello world!\n")
 
-  @app.use
-  def mid(req, res, handle):
-    early = time.time()
-    yield from handle()
-    late = time.time()
-    info = "<br>This connection use {:.5f} seconds".format(late - early)
-    res.write(info)
+@app.use
+def mid(req, res, handle):
+  early = time.time()
+  yield from handle()
+  late = time.time()
+  info = "<br>This connection use {:.5f} seconds".format(late - early)
+  res.write(info)
 ```````````
 The method will be decorated to be a coroutine ***automatically***, so you ***do not*** need to decorate the function with ```@asyncio.coroutine```
 
@@ -63,10 +69,10 @@ app.mount('/sub/', subapp)
 
 # Required
 
- - Python 3.3+ (asyncio)
+ - Python 3.4+ (asyncio)
  - routes
 
 
 # Note
 
-ready to release
+ - ***0.1.00***: Release! Fix error handles Bugs.

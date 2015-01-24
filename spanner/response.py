@@ -1,4 +1,5 @@
 import time
+import asyncio
 from http.cookies import SimpleCookie
 from email.utils import formatdate
 from http.server import BaseHTTPRequestHandler
@@ -10,35 +11,6 @@ STATUS_MAP = BaseHTTPRequestHandler.responses
 def status_line(status):
     line = STATUS_MAP[status][0]
     return "{} {}".format(status, line).encode('ascii')
-
-class HttpHeader(list):
-    """
-    HttpHeader is a list.
-    Usage:
-        header = HttpHeader()
-        header['Content-Type'] = 'text/html'
-    """
-    def __init__(self, headers_list=list()):
-        super().__init__(headers_list)
-
-    def get_headers(self):
-        pass
-
-    def __getitem__(self, key):
-        if isinstance(key, str):
-            print("is str")
-            for k,v in self:
-                if k==key:
-                    return v
-            return None
-        else:
-            return super().__getitem__(key)
-
-    def __setitem__(self, key, value):
-        if isinstance(key, str):
-            self.append( (key, str(value)) )
-        else:
-            super().__setitem__(key, value)
 
 
 class HttpResponse:
@@ -54,6 +26,7 @@ class HttpResponse:
         self.version = version
         # self.content_type = content_type
         self.headers_sent = False
+        self.closed = False
 
     def send_headers(self):
         if self.headers_sent:
@@ -64,7 +37,10 @@ class HttpResponse:
 
         # headers = self._get_headers_list(headers)
         # for k,v in self.headers:
-        [ self.writer.write("{}: {}\r\n".format(k, self.headers[k]).encode()) for k in self.headers.keys() ]
+        for key in self.headers:
+            values = self.headers.getall(key)
+            # Write all the values of the key
+            [ self.writer.write("{}:{}\r\n".format(key, v).encode()) for v in values ]
         self.writer.write("\r\n".encode())
         self.headers_sent = True
 
@@ -93,17 +69,19 @@ class HttpResponse:
 
     def close(self):
         self.writer.close()
+        self.closed = True
 
     def render_template(self, name, *args, **kwargs):
         """
         Usage:
-        
+
         req.render_template("index.tpl",{
             "name": "Chen",
         })
         """
         pass
 
+    @asyncio.coroutine
     def abort(self, req, code=404):
         self.status = code
         handler = self._app.get_errors_handler(code)
