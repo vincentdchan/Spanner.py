@@ -1,4 +1,4 @@
-# Spanner
+# Web Spanner
 
 Spanner is a micro web framework written in python for human beings.
 
@@ -6,9 +6,11 @@ It's inspired by Flask & express.js
 
 # How to use it
 
->Spanner has not package yet.
+## Installation
 
->So you can copy the ```spanner``` dictionary to your   project dictionary.
+````````````
+pip install webspanner
+````````````
 
 
 Spanner is very easy to use.
@@ -17,7 +19,7 @@ Here is an example
 
 ```````````python
 
-from spanner import Spanner
+from webspanner import Spanner
 
 app = Spanner()
 
@@ -75,4 +77,4 @@ app.mount('/sub/', subapp)
 
 # Note
 
- - ***0.1.00***: Release! Fix error handles Bugs.
+ - ***0.1.0***: Release! Fix error handles Bugs.
