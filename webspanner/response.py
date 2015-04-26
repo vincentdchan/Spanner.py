@@ -14,7 +14,9 @@ def status_line(status):
 
 
 class HttpResponse:
-    def __init__(self, writer, app, status=200, version=1.1, content_type='text/html'):
+
+    def __init__(self, writer, app, status=200,
+                 version=1.1, content_type='text/html'):
         self.status = int(status)
         self.cookies = SimpleCookie()
         self.writer = writer
@@ -33,17 +35,18 @@ class HttpResponse:
             return
         # send status line first
         self.writer.write("HTTP/{} {} {}\r\n"
-            .format(self.version, self.status, STATUS_MAP[self.status][0]).encode())
+                          .format(self.version, self.status,
+                                  STATUS_MAP[self.status][0]).encode())
 
         # headers = self._get_headers_list(headers)
         # for k,v in self.headers:
         for key in self.headers:
             values = self.headers.getall(key)
             # Write all the values of the key
-            [ self.writer.write("{}:{}\r\n".format(key, v).encode()) for v in values ]
+            [self.writer.write("{}:{}\r\n".format(key, v).encode())
+             for v in values]
         self.writer.write("\r\n".encode())
         self.headers_sent = True
-
 
     def write(self, chunk):
         """Writes chunk of data to a stream by using different writers.
@@ -52,14 +55,14 @@ class HttpResponse:
         writer can't be used after write_eof() method being called.
         write() return drain future.
         """
-        if self.headers_sent == False:
+        if self.headers_sent is False:
             self.send_headers()
         if isinstance(chunk, str):
             chunk = chunk.encode()
         self.writer.write(chunk)
 
     def writelines(self, data_lists):
-        if self.headers_sent == False:
+        if self.headers_sent is False:
             self.send_headers()
         self.writer.writelines(data_lists)
 
@@ -70,16 +73,6 @@ class HttpResponse:
     def close(self):
         self.writer.close()
         self.closed = True
-
-    def render_template(self, name, *args, **kwargs):
-        """
-        Usage:
-
-        req.render_template("index.tpl",{
-            "name": "Chen",
-        })
-        """
-        pass
 
     @asyncio.coroutine
     def abort(self, req, code=404):
@@ -94,7 +87,7 @@ class HttpResponse:
         self.close()
 
     def _get_headers_list(self, headers=None):
-        if headers == None:
+        if headers is None:
             headers = self.headers
         if isinstance(headers, bytes):
             h = headers
@@ -105,7 +98,6 @@ class HttpResponse:
         for c in self.cookies.values():
             h.append((b'Set-Cookie', c.output(header='').encode('ascii')))
         return h
-
 
     def set_cookie(self, name, value='', max_age=None, path='/',
                    domain=None, secure=False, httponly=False):
@@ -119,7 +111,6 @@ class HttpResponse:
                 expires_date = '%s-%s-%s GMT' % (dt[:7], dt[8:11], dt[12:25])
 
             self.cookies[name]['expires'] = expires_date
-
 
         if path is not None:
             self.cookies[name]['path'] = path

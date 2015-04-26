@@ -19,12 +19,14 @@ def get_mime_type(fname):
         return "text/css"
     return "text/plain"
 
+
 def sendfd(writer, f):
     while True:
         buf = f.read(512)
         if not buf:
             break
         yield from writer.write(buf)
+
 
 def sendfile(writer, fname, content_type=None):
     if not content_type:
@@ -39,15 +41,19 @@ def sendfile(writer, fname, content_type=None):
         else:
             raise
 
+
 def jsonify(writer, dict):
     yield from start_response(writer, "application/json")
     yield from writer.write(json.dumps(dict))
+
 
 def static_handler(req, res):
     path = req.match['filename']
     yield from sendfile()
 
+
 class StaticHandler(HttpHandler):
+
     def __init__(self, dir="./static/"):
         self.dir = dir
 
@@ -72,35 +78,39 @@ class StaticHandler(HttpHandler):
             else:
                 raise
 
+
 @asyncio.coroutine
 def default_handler_404(req, res):
     res.status = 404
     res.write("404 Page Not Found\r\n")
 
+
 class Spanner(HttpHandler):
 
     def __init__(self, routes=None, static_dir="./static/",
-                            static_url="/static/{filename:.*?}"):
+                 static_url="/static/{filename:.*?}"):
         if routes:
             self.routes = routes
         else:
             self.routes = Mapper()
         # if static:
         #     self.url_map.append((re.compile("^/static(/.+)"),
-        #         lambda req, resp: (yield from sendfile(resp, static + req.url_match.group(1)))))
+        #         lambda req, resp: (yield from sendfile(resp, static + req.url
         self._mounts = Mapper()
         self._middlewares = []
         self._errors_handler = {
             "404": default_handler_404,
         }
         self.inited = False
-        self.routes.connect(None, static_url, _controller=StaticHandler(static_dir))
+        self.routes.connect(
+            None, static_url, _controller=StaticHandler(static_dir))
 
     @asyncio.coroutine
     def __call__(self, req, res):
         """
-        The sub class of HttpHandler should be a function or a class callable and
-        receive (req, res) pair while request come.
+        The sub class of HttpHandler should be a function
+        or a class callable and receive (req, res) pair
+        while request come.
         """
         path = req.path
         match = self.routes.match(path)
@@ -124,22 +134,10 @@ class Spanner(HttpHandler):
             print(err_info)
             res.status = 500
             if self.debug:
-                res.write(err_info.replace("\n","<br>\n"))
+                res.write(err_info.replace("\n", "<br>\n"))
             else:
                 res.write("An error is occured on the server")
             res.close()
-
-
-    # def mount(self, url, app):
-    #     "Mount a sub-app at the url of current app."
-    #     # Inspired by Bottle. It might seem that dispatching to
-    #     # subapps would rather be handled by normal routes, but
-    #     # arguably, that's less efficient. Taking into account
-    #     # that paradigmatically there's difference between handing
-    #     # an action and delegating responisibilities to another
-    #     # app, Bottle's way was followed.
-    #     app.url = url
-    #     self._mounts.connect(None, url, controller=app)
 
     def route(self, url, **kwargs):
         def route(f):
@@ -151,7 +149,7 @@ class Spanner(HttpHandler):
         if 'method' not in kwargs:
             kwargs['method'] = ['GET', 'POST']
         else:
-            kwargs['method'] = [ v.upper() for v in kwargs['method'] ]
+            kwargs['method'] = [v.upper() for v in kwargs['method']]
         func = asyncio.coroutine(func)
         self.routes.connect(None, url, _controller=func, _conditions=kwargs)
 
@@ -167,7 +165,6 @@ class Spanner(HttpHandler):
         """
         func = asyncio.coroutine(func)   # make the function a coroutine
         self._middlewares.append(func)
-
 
     def handle_errors(self, code):
         def wrapper(f):
@@ -194,11 +191,64 @@ class Spanner(HttpHandler):
         self.loop = loop
         print("* Running on http://%s:%s/" % (host, port))
         # loop.create_task(asyncio.start_server(self._handle, host, port))
-        loop.create_task(asyncio.start_server(BaseServerHandler(self), host, port, loop=loop))
+        loop.create_task(
+            asyncio.start_server(BaseServerHandler(self),
+                                 host, port, loop=loop))
         loop.run_forever()
         loop.close()
 
+
+class Context(object):
+
+    """
+    docstring for Context
+    Context is an object contain both request and response
+
+    """
+
+    def __init__(self, req, res):
+        super(Context, self).__init__()
+        self.req = req
+        self.res = res
+
+    # Request method
+
+    def get_data(self):
+        pass
+
+    def get_json(self):
+        pass
+
+    # Response method
+
+    def write(self, chunk):
+        self.res.write(chunk)
+
+    def send_html(self, text):
+        pass
+
+    def send_file(self, file):
+        pass
+
+    def jsonify(self, json_dict):
+        pass
+
+    def render_template(self, name, *args, **kwargs):
+        """
+        Usage:
+
+        req.render_template("index.html",{
+            "name": "Chen",
+        })
+        """
+        pass
+
+    def close(self):
+        self.res.close()
+
+
 class Next:
+
     """
     This class is designed to deal with the middlewares
     Usage Example:
@@ -208,6 +258,7 @@ class Next:
         yield from handle()
         print("I am using a middleware")
     """
+
     def __init__(self, handler, middlewares, request, response):
         self.handler = handler
         self.middlewares = middlewares

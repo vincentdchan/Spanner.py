@@ -1,16 +1,20 @@
-import spanner
+from webspanner import Spanner
 import time
+import logging
 
-app = spanner.Spanner()
+app = Spanner()
+
 
 @app.route("/")
 def index(req, res):
     res.write("Hello world!\n")
 
+
 @app.route("/user/{id}")
 def show_id(req, res):
     id = req.params['id']
     res.write("ID: {}".format(id))
+
 
 @app.use
 def mid(req, res, handle):
@@ -21,7 +25,6 @@ def mid(req, res, handle):
     res.write(info)
 
 
-import logging
 logging.basicConfig(level=logging.INFO)
 
 if __name__ == '__main__':

@@ -2,7 +2,9 @@ import asyncio
 import json
 from .utils import MultiDict
 
+
 class HttpRequest:
+
     def __init__(self, reader, app):
         self.reader = reader
         self._app = app
@@ -78,13 +80,3 @@ class HttpRequest:
         """Return BODY as JSON."""
         body = yield from self.text()
         return json.loads(body)
-
-    # def read_form_data(self):
-    #     size = int(self.headers["Content-Length"])
-    #     data = yield from self.reader.read(size)
-    #     form = parse_qs(data.decode())
-    #     self.form = form
-    #
-    # def parse_qs(self):
-    #     form = parse_qs(self.qs)
-    #     self.form = form
